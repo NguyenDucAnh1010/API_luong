@@ -2,22 +2,23 @@
 #include <tlhelp32.h>
 #include <iostream>
 #include <set>
+using namespace std;
 
-// H�m hi?n th? th�ng tin v? m?t lu?ng
+// Hàm hiển thị thông tin về mộtt luồngng
 void DisplayThreadInfo(const THREADENTRY32& threadEntry)
 {
-    std::cout << "Thread ID: " << threadEntry.th32ThreadID << std::endl;
-    std::cout << "Process ID: " << threadEntry.th32OwnerProcessID << std::endl;
-    std::cout << "Base Priority: " << threadEntry.tpBasePri << std::endl;
+    cout << "Thread ID: " << threadEntry.th32ThreadID << std::endl;
+    cout << "Process ID: " << threadEntry.th32OwnerProcessID << std::endl;
+    cout << "Base Priority: " << threadEntry.tpBasePri << endl;
 
-    // L?y th�ng tin v? d?a ch? b?t d?u c?a lu?ng
+    // Lấy thông tin về địa chỉ bắt đầu của luồng
     HANDLE hThread = OpenThread(THREAD_QUERY_INFORMATION, FALSE, threadEntry.th32ThreadID);
     if (hThread != NULL)
     {
         FILETIME creationTime, exitTime, kernelTime, userTime;
         if (GetThreadTimes(hThread, &creationTime, &exitTime, &kernelTime, &userTime))
         {
-            // Chuy?n d?i FILETIME sang ULARGE_INTEGER d? t�nh to�n s? l?n chuy?n ng? c?nh
+            // Chuyển đổi FILETIME sang ULARGE_INTEGER để tính toán số lần chuyển ngữ cảnnh
             ULARGE_INTEGER kernelTimeValue;
             kernelTimeValue.LowPart = kernelTime.dwLowDateTime;
             kernelTimeValue.HighPart = kernelTime.dwHighDateTime;
@@ -26,177 +27,140 @@ void DisplayThreadInfo(const THREADENTRY32& threadEntry)
             userTimeValue.LowPart = userTime.dwLowDateTime;
             userTimeValue.HighPart = userTime.dwHighDateTime;
 
-            std::cout << "Kernel Time (ms): " << kernelTimeValue.QuadPart / 10000 << std::endl;
-            std::cout << "User Time (ms): " << userTimeValue.QuadPart / 10000 << std::endl;
+            cout << "Kernel Time (ms): " << kernelTimeValue.QuadPart / 10000 << endl;
+            cout << "User Time (ms): " << userTimeValue.QuadPart / 10000 << endl;
         }
 
         CloseHandle(hThread);
     }
 
-    std::cout << std::endl;
+    cout << endl;
 }
 
-// H�m hi?n th? danh s�ch c�c lu?ng
+
+// Hàm hiển thị danh sách các luồng
 void DisplayProcessInfo(){
 	HANDLE hSnapshot;
     PROCESSENTRY32 pe32;
-
-    // T?o snapshot c?a c�c ti?n tr�nh dang ch?y
+    // Tạo snapshot của các tiến trình dang chạy
     hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (hSnapshot == INVALID_HANDLE_VALUE)
-    {
-        std::cout << "Khong the tao snapshot cua tien trinh. Loi " << GetLastError() << std::endl;
+    if (hSnapshot == INVALID_HANDLE_VALUE){
+        cout << "Khong the tao snapshot cua tien trinh. Loi " << GetLastError() << endl;
         return ;
     }
-
-    // Thi?t l?p k�ch thu?c c?u tr�c PROCESSENTRY32
+    // Thiết lập kích thước cấu trúc PROCESSENTRY32
     pe32.dwSize = sizeof(PROCESSENTRY32);
-
-    // L?y th�ng tin c?a ti?n tr�nh d?u ti�n
-    if (!Process32First(hSnapshot, &pe32))
-    {
-        std::cout << "Khong the lay th�ng tin tien trinh. Loi " << GetLastError() << std::endl;
+    // Lấy thông tin của tiến trình đầu tiên
+    if (!Process32First(hSnapshot, &pe32)){
+        cout << "Khong the lay thông tin tien trinh. Loi " << GetLastError() << endl;
         CloseHandle(hSnapshot);
         return ;
     }
-
-    // Li?t k� danh s�ch c�c ti?n tr�nh
-    std::cout << "Danh sach cac tien trinh:" << std::endl;
-    do
-    {
-    	if (pe32.th32ProcessID != GetCurrentProcessId()){
-    		continue;
-		}
-    	
-        std::cout << "Process ID: " << pe32.th32ProcessID << ", Process Name: " << pe32.szExeFile << std::endl;
-        
-        // L?y ID c?a ti?n tr�nh hi?n t?i
+    // Liệt kê danh sách các tiến trình
+    cout << "Danh sach cac tien trinh:" << endl;
+    do{
+    	if (pe32.th32ProcessID != GetCurrentProcessId()){   continue;   }
+        cout << "Process ID: " << pe32.th32ProcessID << ", Process Name: " << pe32.szExeFile << endl;
+        // L?y ID c?a ti?n trình hi?n t?i
 	    DWORD currentProcessId = pe32.th32ProcessID;
-	
-	    // L?y snapshot c?a t?t c? c�c ti?n tr�nh v� lu?ng dang ch?y tr�n h? th?ng
+	    // L?y snapshot c?a t?t c? các ti?n trình và lu?ng dang ch?y trên h? th?ng
 	    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
-	    if (snapshot == INVALID_HANDLE_VALUE)
-	    {
-	        std::cerr << "Kh�ng th? l?y snapshot c?a ti?n tr�nh v� lu?ng." << std::endl;
+	    if (snapshot == INVALID_HANDLE_VALUE){
+	        cerr << "Khong the lay snapshot cuaa tien trinh và luong." << endl;
 	        return ;
 	    }
-	
-	    // Kh?i t?o k�ch thu?c c?a THREADENTRY32
+	    // Khởi tao kích thước của THREADENTRY32
 	    THREADENTRY32 threadEntry;
 	    threadEntry.dwSize = sizeof(THREADENTRY32);
-	
-	    // Khai b�o std::set d? theo d�i c�c lu?ng d� hi?n th?
-		std::set<DWORD> displayedThreads;
-		
-		// L?p qua t?t c? c�c lu?ng trong snapshot
-		if (Thread32First(snapshot, &threadEntry))
-		{
-		    do
-		    {
-		        // Ki?m tra xem lu?ng thu?c v? ti?n tr�nh hi?n t?i hay kh�ng
-		        if (threadEntry.th32OwnerProcessID == currentProcessId)
-		        {
-		            // Ki?m tra xem lu?ng d� du?c hi?n th? hay chua
-		            if (displayedThreads.find(threadEntry.th32ThreadID) == displayedThreads.end())
-		            {
-		                // Hi?n th? th�ng tin c?a lu?ng
+	    // Khai báo set dể theo dõi các luồng dã hiển thị
+		set<DWORD> displayedThreads;
+		// Lặp qua tất cả các luồng trong snapshot
+		if (Thread32First(snapshot, &threadEntry)){
+		    do{
+		        // Kiểm tra xem luồng thuộc về tiến trình hiện tại hay không
+		        if (threadEntry.th32OwnerProcessID == currentProcessId){
+		            // Kiểm tra xem luồng dã dượcc hiện thị hay chưa
+		            if (displayedThreads.find(threadEntry.th32ThreadID) == displayedThreads.end()){
+		                // Hiển thị thông tin của luồng
 		                DisplayThreadInfo(threadEntry);
-		
-		                // Th�m th32ThreadID v�o std::set d? theo d�i
+		                // Thêm th32ThreadID vào set để theo dõi
 		                displayedThreads.insert(threadEntry.th32ThreadID);
 		            }
 		        }
 		    } while (Thread32Next(snapshot, &threadEntry));
 		}
-	
-	    // ��ng snapshot
+	    // Ðóng snapshot
 	    CloseHandle(snapshot);
-        
     } while (Process32Next(hSnapshot, &pe32));
-    
-    // ��ng handle c?a snapshot
+    // Ðóng handle của snapshot
     CloseHandle(hSnapshot);
 }
 
-DWORD WINAPI Thread1(LPVOID lpParam)
+// Thân luồng khởi tạo
+DWORD WINAPI ThreadFunc(LPVOID lpParam)
 {
-    // Th?i gian ch?y c?a lu?ng (10 ph�t = 600,000 milliseconds)
+    // Thời gian chạy của luồng (10 phút = 600,000 milliseconds)
     const DWORD totalRuntime = 60000;
 
-    DWORD startTime = GetTickCount(); // Th?i di?m b?t d?u ch?y lu?ng
+    DWORD startTime = GetTickCount(); // Thời diểm bắt đàu chạy luồng
 
     while (GetTickCount() - startTime < totalRuntime)
     {
-        // M� c�ng vi?c c?a lu?ng
-        std::cout << "Thread 1 is running" << std::endl << std::endl;
-        // C�c c�ng vi?c kh�c c?a lu?ng...
+    	intptr_t threadId = reinterpret_cast<intptr_t>(lpParam);
+        // Mã công việc củaa luồng
+        cout << "Thread " << threadId << " is running." << endl << endl;
 
-        Sleep(1000); // T?m d?ng th?c thi lu?ng trong 1 gi�y
+        Sleep(1000); // Tạmm dừng thực thi luồng trong 1 giây
     }
 
     return 0;
 }
 
-DWORD WINAPI Thread2(LPVOID lpParam)
-{
-    // Th?i gian ch?y c?a lu?ng (10 ph�t = 600,000 milliseconds)
-    const DWORD totalRuntime = 60000;
-
-    DWORD startTime = GetTickCount(); // Th?i di?m b?t d?u ch?y lu?ng
-
-    while (GetTickCount() - startTime < totalRuntime)
-    {
-        // M� c�ng vi?c c?a lu?ng
-        std::cout << "Thread 2 is running" << std::endl << std::endl;
-        // C�c c�ng vi?c kh�c c?a lu?ng...
-
-        Sleep(1000); // T?m d?ng th?c thi lu?ng trong 1 gi�y
-    }
-
-    return 0;
-}
 
 int main()
 {
+    // Hiển thị danh sách các luồng
 	DisplayProcessInfo();
-    int i=1;
-    // T?o lu?ng 1
-    HANDLE hThread1 = CreateThread(NULL, 0, Thread1, NULL, 0, NULL);
+    // Tạo luồng 1
+    HANDLE hThread1 = CreateThread(NULL, 0, ThreadFunc, reinterpret_cast<LPVOID>(1), 0, NULL);
     if (hThread1 == NULL)
     {
-        std::cerr << "Failed to create Thread 1" << std::endl;
+        cerr << "Failed to create Thread 1" << endl;
         return 1;
     }
-    
-    // T?o lu?ng 2
-    HANDLE hThread2 = CreateThread(NULL, 0, Thread2, NULL, 0, NULL);
+    // Tạo luồng 2
+    HANDLE hThread2 = CreateThread(NULL, 0, ThreadFunc, reinterpret_cast<LPVOID>(2) ,0 , NULL);
     if (hThread2 == NULL)
     {
-        std::cerr << "Failed to create Thread 2" << std::endl;
+        cerr << "Failed to create Thread 2" << endl;
         return 1;
     }
-    
+    // Hiển thị danh sách các luồng
     DisplayProcessInfo();
-    
-    std::cout << "Thay doi do uu tien cua Thread 2" << std::endl << std::endl;
-    
-    // Thay d?i d? uu ti�n c?a lu?ng th�nh ABOVE_NORMAL_PRIORITY_CLASS
+    // Thay đổi đọ ưu tiên của luồng thành ABOVE_NORMAL_PRIORITY_CLASS
     if (!SetThreadPriority(hThread2, THREAD_PRIORITY_ABOVE_NORMAL))
     {
-        std::cerr << "Failed to set thread priority." << std::endl;
+        cerr << "Failed to set thread 2 priority." << endl;
         CloseHandle(hThread2);
         return 1;
     }
-    
+    else
+	{
+    	cout << "Thay doi do uu tien cua Thread 2" << endl << endl;
+	}
+    // Hiển thị danh sách các luồng
     DisplayProcessInfo();
-    
+    // Giết luồng 1
     if (!TerminateThread(hThread1, 0))
     {
-        std::cerr << "Failed to terminate thread" << std::endl;
+        cerr << "Failed to terminate thread1" << endl;
         return 1;
     }
-
-    // ��ng handle c?a lu?ng
+	else
+	{
+		cout << "Giet Thread 1" << endl << endl;
+	}
+    // Ðóng handle của luồng 1
     CloseHandle(hThread1);
     
     DisplayProcessInfo();
